@@ -1,8 +1,13 @@
 ---
 title: "Assignment 1"
 author: "Arkaprabha Gun"
-date: "2026-01-27"
-output: html_document
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  pdf_document: 
+    latex_engine: xelatex
+    keep_tex: true
+    extra_dependencies: ["booktabs", "longtable", "array", "multirow", "wrapfig", "float", "colortbl", "pdflscape", "tabu", "threeparttable", "threeparttablex", "fontspec", "makecell", "xcolor"]
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -11,41 +16,31 @@ if (!require("pacman", quietly = TRUE)) {
 }
 
 pacman::p_load(ggdag, dagitty, ggplot2, tidyverse, wesanderson,
-               epiR, broom, EValue, stdReg, gtsummary, broom.helpers,epiR,haven,survival,survminer)
+               epiR, broom, EValue, stdReg, gtsummary, broom.helpers,epiR,haven,survival,survminer,kableExtra)
+addicts2 <- read_dta("data/addicts2.dta")
 
+summary(addicts2)
+options(tinytex.verbose = TRUE)
+hist(addicts2$id,breaks = unique(addicts2$id),freq = TRUE)
 set.seed(123)
 ```
 
 
-```{r}
-addicts2 <- read_dta("data/addicts2.dta")
+# Question1 Generate Kaplan-Meier curves for each clinic to visualize the data.
 
-summary(addicts2)
-
-hist(addicts2$id,breaks = unique(addicts2$id),freq = TRUE)
-```
-
-## Question 1 a
+### Question 1 a Show the graph, including confidence intervals.
 
 ```{r}
-# Check which records have clinic = 9 or 22
 addicts2[addicts2$clinic %in% c(9, 22), ]
 addicts2 <- addicts2[addicts2$clinic %in% c(1, 2) & addicts2$survt > 0 & addicts2$survt < 2000, ]
 
 
-# Create a cleaned dataset excluding these problematic records
 addicts_clean <- addicts2[addicts2$clinic %in% c(1, 2), ]
 
-# Verify
-table(addicts_clean$clinic)
-
-# Now fit the Kaplan-Meier curves with cleaned data
 km_fit <- survfit(Surv(survt, status) ~ clinic, data = addicts_clean)
 
-# Check the fit
 km_fit
 
-# Generate the Kaplan-Meier plot with confidence intervals
 ggsurvplot(
   km_fit,
   data = addicts_clean,
@@ -59,17 +54,19 @@ ggsurvplot(
   legend.labs = c("Clinic 1", "Clinic 2")
 )
 ```
-## Question 1b
-```{r}
-# Perform the log-rank test
-logrank_test <- survdiff(Surv(survt, status) ~ clinic, data = addicts2)
 
-# Display the results
+## Question 1b) Perform a log-rank test to formally evaluate whether the two curves are statistically different. What is your conclusion?
+
+```{r}
+logrank_test <- survdiff(Surv(survt, status) ~ clinic, data = addicts_clean)
+
 logrank_test
 ```
 
-The two survival curves are statistically significantly different (p < 0.001). We reject the null hypothesis that the survival curves are the same between the two clinics.
-## Question 2
+The two survival curves are statistically significantly different (p \< 0.001). We reject the null hypothesis that the Kaplan-Meier(survival) curves are the same between the two clinics.
+
+## Question 2) Generate a graph of the conditional hazards. Show the graph. Do the hazards appear proportional? (/6)
+
 ```{r}
 plot(km_fit, fun="cumhaz", col=c("red", "blue"), lwd=2,
      xlab="Time (days)", 
@@ -77,10 +74,13 @@ plot(km_fit, fun="cumhaz", col=c("red", "blue"), lwd=2,
      main="Cumulative Hazard Functions by Clinic")
 legend("topleft", c("Clinic 1", "Clinic 2"), col=c("red", "blue"), lty=1, lwd=2)
 ```
-The hazards do not appear to be proportional, Since the curves are not parallel.
 
+The hazards do not appear to be proportional, Since the curves are not parallel. Hazards that are proportional would be represented by curves between which the angles remain constant.
 
-## Question 3
+## Question 3) Plot ln[-ln S(t)] against ln(t).
+
+### a) Show the graph.
+
 ```{r}
 plot(km_fit, fun="cloglog", col=c("red", "blue"), lwd=2,
      xlab="ln(Time)", 
@@ -88,26 +88,22 @@ plot(km_fit, fun="cloglog", col=c("red", "blue"), lwd=2,
      main="Complementary Log-Log Plot by Clinic")
 legend("topleft", c("Clinic 1", "Clinic 2"), col=c("red", "blue"), lty=1, lwd=2)
 ```
-1. Proportional Hazards (PH) assumption: DOES NOT HOLD
 
-Reasoning: For PH to hold, the lines must be parallel. These lines clearly are not parallel - they converge around ln(time) = 50-100, then diverge again. This confirms what we saw in the cumulative hazard plot.
+### b Which of the Weibull, exponential, proportional hazards and/or accelerated failure-time assumptions hold? Please explain your reasoning for each of these assumptions. (/3)
 
-2. Exponential distribution assumption: DOES NOT HOLD
+Proportional Hazards (PH) assumption does not hold. For PH to hold, the lines must be parallel. The lines are not parallel, the converge and then diverge again.This confirms what we saw in the cumulative hazard plot.
+Similarly, the Exponential distribution assumption For an exponential distribution, the lines would need to be straight, parallel, and horizontal (zero slope). These lines are curved, not parallel, and have positive slopes.
+The Weibull distribution assumption does not hold. For a Weibull distribution, the lines should be straight and parallel (though they can have a slope). These lines show curvature and are not parallel.Accelerated Failure Time (AFT) assumption dpes not hold AFT models require parallel lines in this plot (similar to PH). Since the lines are not parallel, the AFT assumption does not hold either.
 
-Reasoning: For an exponential distribution, the lines would need to be straight, parallel, AND horizontal (zero slope). These lines are curved, not parallel, and have positive slopes.
+### c What types of models can you use with these data? (/2)
 
-3. Weibull distribution assumption: DOES NOT HOLD
+The choice of models we could potentially use are ones that allow the proportional hazards assumption to be violated. Some examples would be a cox-proportional hazard model with a time trend for the hazard, or parametric models like splines that allow us to fit without assuming a specific distribution ex-ante.AFT models that do not require proportional hazards by virtue of their model specification could also be potentially used.
 
-Reasoning: For a Weibull distribution, the lines should be straight and parallel (though they can have a slope). These lines show curvature and are not parallel.
+## Question 4 Run a Cox model adjusting for prison and methadone dose.
 
-4. Accelerated Failure Time (AFT) assumption: DOES NOT HOLD
+### a Show your results in a table format. (/4)
 
-Reasoning: AFT models require parallel lines in this plot (similar to PH). Since the lines are not parallel, the AFT assumption does not hold either.
-
-
-## Question 4
 ```{r}
-# Fit Cox proportional hazards model
 cox_model <- coxph(Surv(survt, status) ~ clinic + prison + dose, data = addicts2)
 
 tbl_regression(cox_model, 
@@ -116,88 +112,63 @@ tbl_regression(cox_model,
                  clinic ~ "Clinic (2 vs 1)",
                  prison ~ "Prison Record (Yes vs No)",
                  dose ~ "Methadone Dose (per mg/day)"
-               ))
+               ))%>%
+  as_kable_extra(booktabs = TRUE, longtable = TRUE) %>%
+  kable_styling(latex_options = c("hold_position", "scale_down"))
 ```
 
+### b Formally test the proportional hazards assumption. Show your results. Does the assumption hold? If not, for which variables does the assumption not hold? (/6)
+
 ```{r}
-# Test proportional hazards assumption
 ph_test <- cox.zph(cox_model)
 
-# Display the results
 print(ph_test)
 
-# Plot the Schoenfeld residuals
-plot(ph_test)
+ggcoxzph(ph_test)
 ```
-The proportional hazards assumption does NOT hold for the overall model (p = 0.005). Specifically, the assumption is violated for the clinic variable (p < 0.001), while it holds for prison and dose.
+
+The proportional hazards assumption does NOT hold for the overall model (p = 0.005). Specifically, the assumption is violated for the clinic variable (p \< 0.001), while it holds for prison and dose.
+
+### c If the assumption does not hold, run another model taking this into account. Show your results (hazard ratios and 95% confidence intervals) in a table for all 3 variables (clinic, prison and methadone dose) and interpret your results in a few sentences. Which of clinic 1 or 2 appears to perform better? (/8)
 
 ```{r}
-# Fit Cox model with time-varying clinic effect
-cox_tv <- coxph(Surv(survt, status) ~ prison + dose + tt(clinic), 
+cox_tv <- coxph(Surv(survt, status) ~  clinic +prison + dose  + tt(clinic), 
                 data = addicts2,
                 tt = function(x, t, ...) x * log(t))
-
 
 tbl_regression(cox_tv, 
                exponentiate = TRUE,
                label = list(
                  prison ~ "Prison Record (Yes vs No)",
                  dose ~ "Methadone Dose (per mg/day)",
-                 `tt(clinic)` ~ "Clinic × log(time)"
-               ))
-# Calculate clinic HR at median follow-up time
-median_time <- median(addicts2$survt)
-median_time
-
-# Clinic HR at median time
-beta_clinic_time <- coef(cox_tv)["tt(clinic)"]
-clinic_hr_median <- exp(beta_clinic_time * log(median_time))
-clinic_hr_median
-
-# Calculate 95% CI for clinic at median time
-se_clinic <- summary(cox_tv)$coefficients["tt(clinic)", "se(coef)"]
-clinic_lower <- exp((beta_clinic_time - 1.96*se_clinic) * log(median_time))
-clinic_upper <- exp((beta_clinic_time + 1.96*se_clinic) * log(median_time))
-
-# Create results data frame
-results <- data.frame(
-  Variable = c("Clinic (2 vs 1, at median time)", "Prison (Yes vs No)", "Dose (per mg/day)"),
-  HR = c(clinic_hr_median, exp(coef(cox_tv)["prison"]), exp(coef(cox_tv)["dose"])),
-  Lower_CI = c(clinic_lower, exp(confint(cox_tv)["prison",1]), exp(confint(cox_tv)["dose",1])),
-  Upper_CI = c(clinic_upper, exp(confint(cox_tv)["prison",2]), exp(confint(cox_tv)["dose",2]))
-)
-
-results
+                 clinic ~ "Clinic 2 vs 1 (baseline)",
+                 `tt(clinic)` ~ "Clinic 2 vs 1 × log(time) (time-varying)"
+               ))%>%
+  as_kable_extra(booktabs = TRUE, longtable = TRUE) %>%
+  kable_styling(latex_options = c("hold_position", "scale_down"))
 ```
 
-Clinic 2 performs significantly better than Clinic 1. At the median follow-up time (337 days), patients in Clinic 2 have 68% lower hazard of dropping out compared to Clinic 1 (HR = 0.321, 95% CI: 0.205-0.502, p < 0.001). This protective effect of Clinic 2 strengthens over time.
-Patients with a prison record have 44% higher hazard of dropping out (HR = 1.437, 95% CI: 1.033-2.000, p = 0.031). Each additional mg/day of methadone dose reduces the dropout hazard by 3.5% (HR = 0.965, 95% CI: 0.953-0.978, p < 0.001).
+At baseline (t=1 day), patients in Clinic 2 have a 661% higher hazard of dropping out compared to Clinic 1  (HR = 7.61, 95% CI: 0.98-59.3, p = 0.053). However, this initial difference in hazard changes over time, as indicated by the significant time-varying component (HR = 0.58, 95% CI: 0.40-0.84,). Patients with a prison record have a 45% higher hazard of dropping out (HR = 1.47, 95% CI: 1.05-2.04). Each additional mg/day of methadone dose is associated with a 3% reduction in dropout hazard (HR = 0.97, 95% CI: 0.96-0.98, p \< 0.001). We can conclude that while the Hazard in Clinic 2 is higher initially, it performs better in ensuring survival over a period of longer follow-up.
 
-## Question 5
+## Question 5 Run a hazard model assuming an exponential distribution. Hint: use flexsurvreg
 
+### a Show your results (estimate and 95% confidence intervals) in a table for all 3 variables (clinic, prison and methadone use) and interpret your results in a few sentences. Which of clinic 1 or 2 appears to perform better? (/8)9i
 
 ```{r}
-# Load the flexsurv package
 p_load(flexsurv)
 
-# Fit exponential model
 exp_model <- flexsurvreg(Surv(survt, status) ~ clinic + prison + dose, 
-                         data = addicts2, 
+                         data = addicts_clean, 
                          dist = "exponential")
 
-# Display summary
-summary(exp_model)
 
-# Get coefficients and convert to hazard ratios
-# In flexsurvreg with exponential, coefficients are on log-hazard scale
-# So HR = exp(coefficient)
+
 exp_results <- data.frame(
   Variable = c("Clinic (2 vs 1)", "Prison (Yes vs No)", "Dose (per mg/day)"),
   Estimate = coef(exp_model)[c("clinic", "prison", "dose")],
   HR = exp(coef(exp_model)[c("clinic", "prison", "dose")])
 )
 
-# Get confidence intervals
 ci <- confint(exp_model)
 exp_results$Lower_CI <- exp(ci[c("clinic", "prison", "dose"), 1])
 exp_results$Upper_CI <- exp(ci[c("clinic", "prison", "dose"), 2])
@@ -205,70 +176,116 @@ exp_results$Upper_CI <- exp(ci[c("clinic", "prison", "dose"), 2])
 exp_results
 ```
 
-Clinic 2 performs significantly better than Clinic 1. Patients in Clinic 2 have 58% lower hazard of dropping out compared to Clinic 1 (HR = 0.420, 95% CI: 0.278-0.635). This indicates substantially better patient retention in Clinic 2.
-Patients with a prison record have 30% higher hazard of dropping out, though this is not statistically significant (HR = 1.305, 95% CI: 0.943-1.805, CI includes 1.0). Each additional mg/day of methadone dose reduces the dropout hazard by 2.8% (HR = 0.972, 95% CI: 0.960-0.983).
+Clinic 2 performs significantly better than Clinic 1. Patients in Clinic 2 have 58% lower hazard of dropping out compared to Clinic 1 (HR = 0.420, 95% CI: 0.278-0.635). This indicates substantially better patient retention in Clinic 2. Patients with a prison record have 30% higher hazard of dropping out, though this difference is not statistically significant (HR = 1.305, 95% CI: 0.943-1.805). Each additional mg/day of methadone dose reduces the dropout hazard by 2.8% (HR = 0.972, 95% CI: 0.960-0.983).
 
-## 5b
+## 5 b Graph the predicted hazard by time using the plot command. Show the graph. (/4)
+
 ```{r}
 plot(exp_model, type="hazard", ci=TRUE)
 
 ```
 
+### 5c) As a reminder, the exponential regression model assumes that the baseline hazard (the hazard when all covariates equal zero) is constant over time.  Based on the results that you have obtained so far, does the evidence support that assumption or not?  Justify your answer in one or two sentences. (/4)
 
+The evidence does not support the exponential assumption. The complementary log-log plots showed non-linear patterns and non-parallel curves, indicating the hazard is not constant over time. Additionally, the cumulative hazard functions diverged rather than remaining linear and parallel as required by the exponential distribution.
 
-The evidence does NOT strongly support the exponential assumption. The complementary log-log plots (Question 3) showed non-linear patterns and non-parallel curves, indicating the hazard is not constant over time. Additionally, the cumulative hazard functions diverged rather than remaining linear and parallel as required by the exponential distribution.
+## Question 6 Run an accelerated failure-time (AFT) model assuming a Weibull distribution.
 
-
-## Question 6
+### 6 a Show your results (estimate and 95% confidence intervals) in a table for all 3 variables (clinic, prison and methadone use) and interpret your results in a few sentences. Which of clinic 1 or 2 appears to perform better? (/8)
 
 ```{r}
-# Fit Weibull AFT model
 weibull_aft <- flexsurvreg(Surv(survt, status) ~ clinic + prison + dose, 
                            data = addicts2, 
                            dist = "weibull")
 
-# Use tidy to get results
-tbl_regression(weibull_aft, 
-               exponentiate = TRUE,
-               label = list(
-                 clinic ~ "Clinic (2 vs 1)",
-                 prison ~ "Prison Record (Yes vs No)",
-                 dose ~ "Methadone Dose (per mg/day)"
-               ))
+library(broom)
+library(dplyr)
+
+weibull_results <- tidy(weibull_aft, conf.int = TRUE)
+
+weibull_cov <- weibull_results %>%
+  mutate(
+    exp_estimate = exp(estimate),
+    exp_lower = exp(conf.low),
+    exp_upper = exp(conf.high),
+    Variable = case_when(
+      term == "shape" ~ "Shape Parameter",
+      term == "scale" ~ "Scale Parameter",
+      term == "clinic" ~ "Clinic (2 vs 1)",
+      term == "prison" ~ "Prison Record (Yes vs No)",
+      term == "dose" ~ "Methadone Dose (per mg/day)",
+      TRUE ~ term
+    )
+  ) %>%
+  select(Variable, estimate, exp_estimate, conf.low, conf.high, 
+         exp_lower, exp_upper, p.value)
+
+kable(weibull_cov, 
+      format = "latex",
+      booktabs = TRUE,
+      caption = "Weibull AFT Model Results") %>%
+  kable_styling(latex_options = "hold_position")
 ```
-## 6b
+
+The shape parameter of 1.38 (95% CI: 1.20-1.57) indicates the baseline hazard increases over time, suggesting dropout risk accelerates the longer patients remain in treatment. Patients in Clinic 2 have survival times that are approximately twice as long as those in Clinic 1 (acceleration factor = 2.01, 95% CI: 1.48-2.72, p \< 0.001). Patients with a prison record have survival times that are 21% shorter (acceleration factor =  0.79, 95% CI: 0.62-1.00, p = 0.048), indicating they drop out faster. Each additional mg/day of methadone dose increases survival time by 2.5% (acceleration factor = exp(0.02) = 1.025, 95% CI: 1.015-1.033).
+
+### 6b Graph the predicted hazard by time using the plot command. Show the graph. Compare this graph with the one you would expect for the exponential model. Are they similar or different? Why do you think that is?
+
 ```{r}
 plot(weibull_aft, type="hazard", ci=TRUE)
 
 ```
-The Weibull model has a shape parameter = 1.38 . When shape > 1, the hazard increases over time. The exponential is actually a special case of Weibull where shape = 1 (constant hazard). Since our data has shape = 1.38, the hazard increases over time, making the Weibull a better fit than the exponential.
 
+The graph from the exponential model shows a constant hazard over time (which we have assumed). Whereas, the Weibull model has a shape parameter = 1.38(95% CI: 1.20-1.57) . When shape \> 1, the hazard increases over time. The exponential is a special case of Weibull where shape = 1 (constant hazard). Since our data has shape = 1.38, the hazard increases over time, making the Weibull a better fit than the exponential.
 
-## 6c
+### 6 c Given what you know about the mathematical forms of the Weibull and exponential models, what information can allow you to test whether the baseline hazard is best approximated by a Weibull than an exponential distribution? Hint: look at residuals from the Weibull model.
+
 ```{r}
-# Look at the shape parameter and its confidence interval
-weibull_tidy[weibull_tidy$term == "shape", ]
+
+library(broom)
+weibull_results <- tidy(weibull_aft, conf.int = TRUE)
+weibull_results %>% filter(term == "shape")
 
 
-AIC(exp_model)
-AIC(weibull_aft)
+AIC(exp_model)      
+AIC(weibull_aft)    
+
+
+cs_resid_weibull <- residuals(weibull_aft, type = "response")
+cs_resid_exp <- residuals(exp_model, type = "response")
+
+
+km_resid_weibull <- survfit(Surv(cs_resid_weibull, addicts2$status) ~ 1)
+km_resid_exp <- survfit(Surv(cs_resid_exp, addicts2$status) ~ 1)
+
+par(mfrow = c(1, 2))
+
+plot(km_resid_weibull$time, -log(km_resid_weibull$surv), 
+     type = "s", xlab = "Cox-Snell Residuals", 
+     ylab = "Cumulative Hazard",
+     main = "Weibull Model Residuals")
+abline(0, 1, col = "red", lty = 2)
+
+plot(km_resid_exp$time, -log(km_resid_exp$surv), 
+     type = "s", xlab = "Cox-Snell Residuals", 
+     ylab = "Cumulative Hazard",
+     main = "Exponential Model Residuals")
+abline(0, 1, col = "red", lty = 2)
+
+par(mfrow = c(1, 1))
 ```
 
+Yes, the baseline hazard is significantly better approximated by the Weibull than the exponential distribution. The shape parameter confidence interval excludes 1.0, and the Weibull model has substantially better fit (lower AIC, 2151.67 vs 2168.95).When we plot the cox-snell residuals, we see that both of them fit similarly well, and are difficult to differentiate visually. But on the basis of the other evidence, we can find that the bazeline hazard is better modelled using a weibull model than an exponential one.
 
- Yes, the baseline hazard is significantly better approximated by the Weibull than the exponential distribution. The shape parameter confidence interval excludes 1.0, and the Weibull model has substantially better fit (lower AIC).
- 
- ## 6d
+### 6d Weibull models can be used to model survival and hazard rates. To model hazard rates, run a proportional hazards model using Weibull AFT. You will notice that the sign (positive vs negative) of the coefficients for the independent variables are all reversed in the hazard form relative to the AFT form that you obtained above. Why do you think that is?
 
 ```{r}
-# Fit Weibull in proportional hazards form
 weibull_ph <- flexsurvreg(Surv(survt, status) ~ clinic + prison + dose, 
-                          data = addicts2, 
+                          data = addicts_clean, 
                           dist = "weibullPH")
 
-# Get results
 tidy(weibull_ph, exponentiate = TRUE, conf.int = TRUE)
 
-# Compare coefficients
 library(broom)
 aft_coef <- tidy(weibull_aft)[c(3:5), c("term", "estimate")]
 ph_coef <- tidy(weibull_ph)[c(3:5), c("term", "estimate")]
@@ -277,40 +294,23 @@ comparison <- merge(aft_coef, ph_coef, by = "term", suffixes = c("_AFT", "_PH"))
 comparison
 ```
 
-The signs reverse because AFT and PH models parameterize effects differently:
-AFT (Accelerated Failure Time):
-
-Models the effect on survival time
-Positive coefficient → longer survival time (slower failure)
-Example: clinic coefficient = +0.698 means Clinic 2 patients survive longer
-
-PH (Proportional Hazards):
-
-Models the effect on hazard rate (risk of failure)
-Positive coefficient → higher hazard (faster failure)
-Example: clinic coefficient = -0.961 means Clinic 2 patients have lower hazard
-
-The relationship: Longer survival time ↔ Lower hazard rate
-So a positive AFT coefficient (longer survival) corresponds to a negative PH coefficient (lower hazard), and vice versa. They're expressing the same relationship from opposite perspectives.
+AFT models model the effect of a particular exposure/intervention on survival time. Whereas hazard models model the effect on hazard, which is the risk of failure. Hence the two concepts are inversely related/are complements to each other. As a result we see that the sign of the estimated coefficient are reversed in the AFT model compared to the hazard models, even though they are modelling the same relationship.
 
 # Section II Survival Curves
+
 ```{r}
  library(haven)
 divorce_EPI608 <- read_dta("data/divorce_EPI608.dta")
- View(divorce_EPI608)
 
-str(divorce_EPI608)
-head(divorce_EPI608, 20)
+
 summary(divorce_EPI608)
 
 length(unique(divorce_EPI608$id))
 
-table(divorce_EPI608$yearscat)
-
-table(divorce_EPI608$div)
-
-table(divorce_EPI608$heduc)
 ```
+
+## Analysis 
+### Step 1	Run a pooled logistic regression model that estimates the conditional probability of remaining married including all covariates, a time variable and an interaction term between education and time to allow for time-varying HR.  If you can include a flexible functional form for time (such as a spline), great, but it is not required as part of this exercise.  Running a pooled logistic regression on data with small time intervals will approximate a Cox proportional hazards model.  Note that using smaller time intervals would be best but this is the data you have (data is not always in the format you wish it was).
 
 ```{r}
 
@@ -318,119 +318,79 @@ pooled_model <- glm(div ~ heduc + heblack + mixed + yearscat + heduc:yearscat,
                     data = divorce_EPI608,
                     family = binomial(link = "logit"))
 
-# Display the model summary
-summary(pooled_model)
-
-# Get tidy results
-library(broom)
-tidy(pooled_model)
+tbl_regression(pooled_model,exponentiate = TRUE)%>%
+  as_kable_extra(booktabs = TRUE, longtable = TRUE) %>%
+  kable_styling(latex_options = c("hold_position", "scale_down"))
 ```
 
-Education has a time-varying effect (interaction term p = 0.052)
-Time decreases divorce risk (negative coefficient)
-Mixed race increases divorce risk
-
-Question 2
+### Step 2 	Double your dataset so that it includes counterfactual exposures (education levels) for each couple.
 
 ```{r}
-# Question 2: Create counterfactual dataset
-# Double the dataset so each couple appears twice:
-# Once with heduc = 0, once with heduc = 1
 
-# Create two copies of the data
+
 data_heduc0 <- divorce_EPI608
-data_heduc0$heduc <- 0  # Set everyone to <12 years education
+data_heduc0$heduc <- 0  
 
 data_heduc1 <- divorce_EPI608
-data_heduc1$heduc <- 1  # Set everyone to ≥12 years education
+data_heduc1$heduc <- 1  
 
-# Combine both datasets
 counterfactual_data <- rbind(data_heduc0, data_heduc1)
 
-# Add an identifier for which counterfactual exposure
 counterfactual_data$counterfactual <- rep(c(0, 1), each = nrow(divorce_EPI608))
 
-# Check the size
 nrow(divorce_EPI608)
 nrow(counterfactual_data)
 
-# Verify the structure
-head(counterfactual_data)
-tail(counterfactual_data)
+
 ```
-## Question 3
+
+### Step 3 Compute predicted probabilities of remaining married (of “surviving”) for each couple at each time interval and for both counterfactual exposures (education levels).
 
 ```{r}
-# Question 3: Compute predicted probabilities of remaining married
-# Get predicted probability of divorce for each row
+
 counterfactual_data$pred_div <- predict(pooled_model, 
                                         newdata = counterfactual_data, 
                                         type = "response")
 
-# Convert to probability of remaining married (surviving)
 counterfactual_data$pred_survive <- 1 - counterfactual_data$pred_div
 
-# Check the predictions
-head(counterfactual_data[, c("id", "yearscat", "heduc", "counterfactual", 
-                             "pred_div", "pred_survive")])
 
-# Summary statistics
-summary(counterfactual_data$pred_survive)
 
-# Compare by education level
+
 aggregate(pred_survive ~ heduc + yearscat, 
           data = counterfactual_data[counterfactual_data$yearscat %in% c(0, 10, 20), ], 
           FUN = mean)
 ```
 
-## Question 4
-```{r}
-# Question 4: Cumulatively multiply survival probabilities (simpler approach)
-library(dplyr)
+### Step 4 Now that you have conditional survival probabilities, cumulatively multiply these probabilities for each couple and counterfactual exposure (education level) to obtain cumulative survival curve data (hint: remember that the sum of log-transformed values is equivalent to a multiplication on the natural scale) Use loops to fill in the data.
 
-# Calculate cumulative survival using grouped operations
+```{r}
+
 counterfactual_data <- counterfactual_data %>%
   arrange(id, counterfactual, yearscat) %>%
   group_by(id, counterfactual) %>%
   mutate(cum_survive = cumprod(pred_survive)) %>%
   ungroup()
 
-# Check the results
-head(counterfactual_data[, c("id", "yearscat", "heduc", "counterfactual", 
-                             "pred_survive", "cum_survive")], 20)
 
-# Verify at different time points
-counterfactual_data %>%
-  filter(yearscat %in% c(0, 5, 10, 15, 20)) %>%
-  select(id, yearscat, heduc, counterfactual, cum_survive) %>%
-  head(20)
 ```
 
-# Question 5: Average cumulative survival probabilities by year and education level
+### Step 5 Average cumulative survival probabilities over each year for each counterfactual exposure
 
 ```{r}
-# This creates the marginal survival curves
 
 marginal_curves <- counterfactual_data %>%
   group_by(yearscat, heduc) %>%
   summarise(avg_cum_survive = mean(cum_survive),
             .groups = "drop")
 
-# View the results
-head(marginal_curves, 20)
 
-# Check at specific time points
-marginal_curves %>%
-  filter(yearscat %in% c(0, 5, 10, 15, 20, 25, 30))
 ```
 
-## Question 6
+### Step 6  Show separate survival curves for each education level category on the same graph.  Label the axes properly. Copy your graph below.
 
 ```{r}
-# Question 6: Plot survival curves by education level
-library(ggplot2)
 
-# Create the plot
 survival_plot <- ggplot(marginal_curves, aes(x = yearscat, y = avg_cum_survive, 
                                               color = factor(heduc), 
                                               group = factor(heduc))) +
@@ -443,51 +403,44 @@ survival_plot <- ggplot(marginal_curves, aes(x = yearscat, y = avg_cum_survive,
        title = "Marginal Survival Curves: Time to Divorce by Education Level") +
   theme_minimal() +
   theme(legend.position = "right",
-        plot.title = element_text(hjust = 0.5)) +
-  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.1))
-
-# Display the plot
+        plot.title = element_text(hjust = 0.5))
 print(survival_plot)
 
-# Save the plot if needed
-# ggsave("survival_curves.png", survival_plot, width = 8, height = 6)
+
 ```
 
-## Interp 1
+### Question 1
+
 ```{r}
-# Compare survival probabilities at key time points
 marginal_curves %>%
   filter(yearscat %in% c(10, 20, 30, 40)) %>%
   pivot_wider(names_from = heduc, values_from = avg_cum_survive, names_prefix = "heduc_")
 ```
-Education (≥12 years) appears to be detrimental to marriage in the early years but the effect diminishes over time. The blue line (≥12 years education) is consistently below the red line (<12 years), indicating lower probability of remaining married. However, the curves converge after about 20-30 years, suggesting the negative effect of higher education weakens over time.
 
+Education (≥12 years) appears to be detrimental to marriage in the early years but the effect diminishes over time. The blue line (≥12 years education) is consistently below the red line (\<12 years), indicating lower probability of remaining married. However, the curves converge after about 20-30 years, suggesting the negative effect of higher education weakens over time.
 
-## Interpretation Question 2: Difference in 75th percentile of time to divorce
+### Interpretation Question 2: Difference in 75th percentile of time to divorce
 
 ```{r}
-# Find exact crossing point for 75% survival (0.75)
-# For heduc = 0 (< 12 years)
+
 marginal_curves %>%
   filter(heduc == 0, avg_cum_survive >= 0.74, avg_cum_survive <= 0.76)
 
-# For heduc = 1 (≥ 12 years)  
 marginal_curves %>%
   filter(heduc == 1, avg_cum_survive >= 0.74, avg_cum_survive <= 0.76)
 ```
-The difference in the 75th percentile of time to divorce between the two education groups is approximately 6 years. Couples where the husband has ≥12 years of education reach the 75th percentile (25% divorced) about 6 years earlier than those with <12 years of education, indicating faster divorce rates among more educated couples.
 
-## Interpretation Question 3: Effect on probability of remaining married for 10+ years
+The difference in the 75th percentile of time to divorce between the two education groups is approximately 3 years. Couples where the husband has ≥12 years of education reach the 75th percentile (25% divorced) about 3 years earlier than those with \<12 years of education, indicating faster divorce rates among more educated couples.
+
+### 3 Provided that all usual assumptions are met, how much does education affect the probability of remaining married for 10 years or more? Show your calculation and express your result in words.
 
 ```{r}
-# Get survival probabilities at year 10
 marginal_curves %>%
   filter(yearscat == 10)
 ```
-Higher education (≥12 years) decreases the probability of remaining married for 10 years or more by 2 percentage points (from 82.4% to 80.4%). In relative terms, couples with higher-educated husbands have 97.6% of the 10-year marriage survival probability compared to those with less-educated husbands. This suggests that higher education is associated with a slightly higher risk of divorce within the first 10 years of marriage.
 
-## Interpretation Question 4: Why are these survival curves marginal?
+Higher education (≥12 years) decreases the probability of remaining married for 10 years or more by 2 percentage points (from 82.4% to 80.4%). This suggests that higher education is associated with a slightly higher risk of divorce within the first 10 years of marriage.
 
-The survival curves are marginal because of Step 5 (averaging cumulative survival probabilities across all individuals).
-This step averages the predicted survival probabilities over the entire study population for each time point and education level. By doing this, we are standardizing (or weighting) the estimates according to the observed distribution of all other covariates (heblack, mixed) in the actual study population.
-In other words, the marginal survival curves represent what would happen if we could set everyone's education to a specific level while maintaining their actual values for race and mixed-race status. This creates population-averaged estimates that account for the covariate distribution, rather than conditional estimates for specific covariate combinations.
+### 4 The survival curves that you generated are marginal. Can you explain why that is? In other words, which of the above step(s) allowed you to weigh estimates according to the observed distribution of covariates? Explain why.
+
+The survival curves are marginal because of Step 5 (averaging cumulative survival probabilities across all individuals). This step averages the predicted survival probabilities over the entire study population for each time point and education level. By doing this, we are standardizing (or weighting) the estimates according to the observed distribution of all other covariates (heblack, mixed) in the actual study population. In other words, the marginal survival curves represent what would happen if we could set everyone's education to a specific level while maintaining their actual values for race and mixed-race status. This creates population-averaged estimates that account for the covariate distribution, rather than conditional estimates for specific covariate combinations.
